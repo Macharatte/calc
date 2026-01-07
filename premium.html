@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Premium Calculator</title>
+    <style>
+        body { background-color: #0d0d0d; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: manipulation; }
+        header { background: #1a1a1a; padding: 10px 0; text-align: center; border-bottom: 2px solid #d4af37; flex: 0 0 auto; }
+        h1 { margin: 0; font-size: 1.4rem; color: #d4af37; letter-spacing: 2px; }
+        #display-container { flex: 0 0 100px; display: flex; align-items: center; padding: 0 10px; background: #000; }
+        #display { width: 100%; font-size: 3rem; text-align: right; border: none; background: transparent; color: #fff; outline: none; padding: 0; overflow-x: auto; white-space: nowrap; }
+        .mode-selector { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: #222; flex: 0 0 auto; }
+        .mode-btn { height: 45px; font-size: 0.7rem; border: none; cursor: pointer; background: #333; color: #aaa; }
+        .mode-btn.active { background: #d4af37 !important; color: #000 !important; font-weight: bold; }
+        .key-area { flex: 1; padding: 10px; overflow-y: auto; background: #111; display: flex; flex-direction: column; }
+        .keypad, .ext-panel { display: none; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; box-sizing: border-box; }
+        #panel-basic { display: grid; }
+        #panel-unit, #panel-stats, #panel-sci { grid-template-columns: repeat(4, 1fr); }
+        #panel-rate, #panel-tax { display: none; grid-template-columns: 1fr; width: 100%; }
+        button { border: none; border-radius: 5px; font-size: 1.2rem; cursor: pointer; background: #262626; color: #fff; height: 50px; }
+        .op { color: #d4af37; }
+        .equal { background: #d4af37; color: #000; }
+        .ac { color: #ff4d4d; }
+        .bottom-container { display: grid; grid-template-columns: 60px 1fr 60px; gap: 8px; margin-top: 15px; height: 160px; flex-shrink: 0; }
+        .lang-trigger-box, .info-trigger-box { display: flex; align-items: center; justify-content: center; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; cursor: pointer; }
+        .history-box { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+        .history-title { font-size: 0.7rem; color: #d4af37; font-weight: bold; }
+        #history-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        .history-item { border-bottom: 1px solid #262626; padding: 8px 0; color: #ccc; display: flex; align-items: center; font-size: 0.8rem; }
+        .history-time { color: #d4af37; font-size: 1rem; font-weight: bold; margin-right: 12px; flex-shrink: 0; }
+        .history-content { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: #1a1a1a; padding: 25px; border-radius: 12px; border: 2px solid #d4af37; max-width: 400px; width: 100%; }
+        .premium-ui { width: 100%; box-sizing: border-box; }
+        .premium-ui label { display: block; font-size: 0.8rem; color: #d4af37; margin-bottom: 8px; }
+        .premium-ui input, .premium-ui select { width: 100%; padding: 22px 15px; margin-bottom: 15px; background: #2a2a2a; border: 1px solid #d4af37; color: #fff; border-radius: 8px; font-size: 1.2rem; box-sizing: border-box; display: block; }
+        .premium-ui button { height: 70px; font-weight: bold; background: #d4af37 !important; color: #000 !important; width: 100%; font-size: 1.3rem; }
+        .result-box { background: #000; padding: 20px; border-radius: 8px; border: 2px solid #d4af37; margin-top: 15px; text-align: center; min-height: 40px; font-weight: bold; font-size: 1.0rem; line-height: 1.4; }
+        .refresh-btn { height: 60px !important; width: 60px !important; flex-shrink: 0; background: #333 !important; color: #d4af37 !important; border: 1px solid #d4af37 !important; font-size: 1.5rem !important; }
+        #toast { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #d4af37; color: #000; padding: 15px 30px; border-radius: 50px; font-weight: bold; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+<header><h1>Premium Calculator</h1></header>
+<div id="display-container"><input type="text" id="display" value="0" readonly></div>
+<div id="toast">レートを更新しました</div>
+
+<div class="mode-selector">
+    <button class="mode-btn active" id="m-basic" onclick="showPanel('basic', this)">基本</button>
+    <button class="mode-btn" id="m-unit" onclick="showPanel('unit', this)">接頭語</button>
+    <button class="mode-btn" id="m-stats" onclick="showPanel('stats', this)">値数</button>
+    <button class="mode-btn" id="m-sci" onclick="showPanel('sci', this)">科学</button>
+    <button class="mode-btn" id="m-rate" onclick="showPanel('rate', this)">レート</button>
+    <button class="mode-btn" id="m-tax" onclick="showPanel('tax', this)">税金</button>
+</div>
+
+<div class="key-area">
+    <div id="panel-basic" class="keypad">
+        <button class="ac" onclick="clearAll()">AC</button><button class="op" onclick="add('(')">(</button><button class="op" onclick="add(')')">)</button><button class="op" onclick="add('÷')">÷</button>
+        <button onclick="add('7')">7</button><button onclick="add('8')">8</button><button onclick="add('9')">9</button><button class="op" onclick="add('×')">×</button>
+        <button onclick="add('4')">4</button><button onclick="add('5')">5</button><button onclick="add('6')">6</button><button class="op" onclick="add('-')">-</button>
+        <button onclick="add('1')">1</button><button onclick="add('2')">2</button><button onclick="add('3')">3</button><button class="op" onclick="add('+')">+</button>
+        <button onclick="add('0')">0</button><button onclick="add('.')">.</button><button class="op" onclick="add(',')">,</button><button class="equal" onclick="calculate()">=</button>
+    </div>
+    <div id="panel-unit" class="ext-panel" style="display:none;"><script>['Q','R','Y','Z','E','P','T','G','M','k','h','da','d','c','m','μ','n','p','f','a','z','y','r','q'].forEach(u=>document.write(`<button style="color:#d4af37" onclick="add('${u}')">${u}</button>`));</script></div>
+    <div id="panel-stats" class="ext-panel" style="display:none;"><button id="f-mean">平均</button><button id="f-median">中央</button><button id="f-mode">最頻</button><button id="f-stdev">偏差</button><button id="f-max">最大</button><button id="f-min">最小</button><button class="op" onclick="add(',')">,</button><button class="op" onclick="add(')')">)</button></div>
+    <div id="panel-sci" class="ext-panel" style="display:none;"><button onclick="add('sin(')">sin</button><button onclick="add('cos(')">cos</button><button onclick="add('tan(')">tan</button><button onclick="add('√(')">√</button><button onclick="add('^')">^</button><button onclick="add('i')">i</button><button onclick="add('°')">°</button><button onclick="add('π')">π</button><button onclick="add('e')">e</button><button onclick="add('log(')">log</button><button onclick="add('⁻')">(-)</button><button onclick="add(')')">)</button></div>
+    
+    <div id="panel-rate" class="ext-panel"><div class="premium-ui">
+        <label id="l-rate-amt">金額</label>
+        <div style="display:flex; gap:8px;"><input type="text" id="rate-amount" value="1" oninput="cleanInput(this)"><button class="refresh-btn" onclick="updateAllRates(true)">🔄</button></div>
+        <label id="l-rate-from">変換元</label><select id="rate-from"></select>
+        <label id="l-rate-to">変換先</label><select id="rate-to"></select>
+        <button id="b-rate-exec" onclick="fetchRate()">EXCHANGE</button>
+        <div id="rate-result" class="result-box">---</div>
+    </div></div>
+    
+    <div id="panel-tax" class="ext-panel"><div class="premium-ui">
+        <label id="l-tax-amt">金額 (接頭語対応)</label><input type="text" id="tax-amount" value="0" oninput="cleanInput(this)">
+        <label id="l-tax-type">税金の種類 (国税庁基準)</label><select id="tax-type"></select>
+        <button id="b-tax-exec" onclick="calcTax()">TAX ANALYZE & CALC</button>
+        <div id="tax-result" class="result-box">---</div>
+    </div></div>
+
+    <div class="bottom-container">
+        <div class="lang-trigger-box" onclick="openModal('lang-modal')">🌐</div>
+        <div class="history-box">
+            <div class="history-header"><span class="history-title" id="ui-hist">HISTORY</span><span id="ui-clear" onclick="clearHistory()" style="color:#ff4d4d; font-size:0.6rem; cursor:pointer;">CLEAR</span></div>
+            <ul id="history-list"></ul>
+        </div>
+        <div class="info-trigger-box" onclick="openModal('info-modal')">ℹ️</div>
+    </div>
+</div>
+
+<div id="lang-modal" class="modal-overlay" onclick="closeModal('lang-modal')"><div class="modal-content" onclick="event.stopPropagation()" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"><button onclick="setLang('ja')">日本語</button><button onclick="setLang('en')">English</button><button onclick="setLang('zh')">中文</button><button onclick="setLang('ko')">한국어</button><button onclick="setLang('fr')">Français</button><button onclick="setLang('de')">Deutsch</button><button onclick="setLang('es')">Español</button><button onclick="setLang('it')">Italiano</button><button onclick="setLang('pt')">Português</button><button onclick="setLang('ru')">Русский</button></div></div>
+<div id="info-modal" class="modal-overlay" onclick="closeModal('info-modal')"><div class="modal-content" onclick="event.stopPropagation()"><h3 id="ui-info-title" style="color:#d4af37; margin-top:0;"></h3><p id="ui-info-desc" style="font-size:0.9rem; line-height:1.6; color:#ddd;"></p><button id="b-info-close" onclick="closeModal('info-modal')" style="width:100%; margin-top:10px; background:#333; color:#fff; cursor:pointer; border:none; height:40px; border-radius:5px;"></button></div></div>
+
+<script>
+    const disp = document.getElementById('display');
+    const SI_MAP = {Q:1e30,R:1e27,Y:1e24,Z:1e21,E:1e18,P:1e15,T:1e12,G:1e9,M:1e6,k:1e3,h:1e2,da:10,d:0.1,c:0.01,m:1e-3,μ:1e-6,n:1e-9,p:1e-12,f:1e-15,a:1e-18,z:1e-21,y:1e-24,r:1e-27,q:1e-30};
+    const SI_UNITS = Object.keys(SI_MAP);
+    const SCI_VALS = ['π', 'e', 'i', '°', '^', '⁻'];
+    const BASIC_OPS = ['+', '×', '÷', '^', ',', '.', '-'];
+    let currentLang = 'ja';
+    let cachedRates = {};
+
+    function cleanInput(el) {
+        let val = el.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        el.value = val.replace(/[^0-9.a-zA-Z]/g, '');
+    }
+
+    function add(val) {
+        let cur = disp.value; let last = cur.slice(-1);
+        if (cur === "0" && !BASIC_OPS.includes(val) && val !== ")") cur = "";
+
+        if (val === ")") {
+            const opens = (cur.match(/\(/g) || []).length;
+            const closes = (cur.match(/\)/g) || []).length;
+            if (closes >= opens) return;
+        }
+
+        const isNewUnit = SI_UNITS.includes(val);
+        const isNewSci = SCI_VALS.includes(val);
+        const isNewFunc = val.includes("(");
+        const isLastUnit = SI_UNITS.includes(last);
+        const isLastSci = SCI_VALS.includes(last);
+        
+        let lastFuncLen = 0;
+        const funcs = ["sin(", "cos(", "tan(", "log(", "√(", "平均値(", "中央値(", "最頻値(", "偏差値(", "最大値(", "最小値(", "Mean(", "Median(", "Mode(", "SD(", "Max(", "Min("];
+        for (let f of funcs) { if (cur.endsWith(f)) { lastFuncLen = f.length; break; } }
+
+        if (isLastUnit && isNewUnit) { disp.value = cur.slice(0, -1) + val; return; }
+        if (isLastSci && isNewSci) { disp.value = cur.slice(0, -1) + val; return; }
+        if (lastFuncLen > 0 && isNewFunc) { disp.value = cur.slice(0, -lastFuncLen) + val; return; }
+        if (BASIC_OPS.includes(last) && BASIC_OPS.includes(val)) { disp.value = cur.slice(0, -1) + val; return; }
+
+        disp.value = cur + val;
+    }
+
+    async function updateAllRates(showToast = false) {
+        try {
+            const [cb, ex] = await Promise.all([
+                fetch('https://api.coinbase.com/v2/exchange-rates?currency=USD').then(r => r.json()),
+                fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json())
+            ]);
+            cachedRates = { ...ex.rates, ...cb.data.rates };
+            if(showToast) { document.getElementById('toast').style.display='block'; setTimeout(()=>document.getElementById('toast').style.display='none', 2000); }
+        } catch(e) {}
+    }
+
+    function fetchRate() {
+        const amtStr = document.getElementById('rate-amount').value;
+        let amt = parseFloat(amtStr);
+        for(let u in SI_MAP) { if(amtStr.includes(u)) { amt = parseFloat(amtStr.replace(u,'')) * SI_MAP[u]; break; } }
+        const f = document.getElementById('rate-from').value, t = document.getElementById('rate-to').value;
+        const res = (amt / cachedRates[f]) * cachedRates[t];
+        document.getElementById('rate-result').innerText = `${res.toLocaleString(undefined,{maximumFractionDigits:6})} ${t}`;
+    }
+
+    function calcTax() {
+        const amtStr = document.getElementById('tax-amount').value;
+        let amt = parseFloat(amtStr);
+        for(let u in SI_MAP) { if(amtStr.includes(u)) { amt = parseFloat(amtStr.replace(u,'')) * SI_MAP[u]; break; } }
+        const type = document.getElementById('tax-type').value;
+        let tax = 0, rateStr = "", deduction = 0;
+        if(type==="inc"){
+            if(amt<=1950000){ tax=amt*0.05; rateStr="5%"; }
+            else if(amt<=3300000){ tax=amt*0.1-97500; rateStr="10%"; deduction=97500; }
+            else if(amt<=6950000){ tax=amt*0.2-427500; rateStr="20%"; deduction=427500; }
+            else if(amt<=8990000){ tax=amt*0.23-636000; rateStr="23%"; deduction=636000; }
+            else if(amt<=17990000){ tax=amt*0.33-1536000; rateStr="33%"; deduction=1536000; }
+            else if(amt<=39990000){ tax=amt*0.4-2796000; rateStr="40%"; deduction=2796000; }
+            else { tax=amt*0.45-4796000; rateStr="45%"; deduction=4796000; }
+        } else if(type==="corp"){ 
+            if(amt<=8000000){ tax=amt*0.15; rateStr="15%"; }
+            else { tax=1200000+(amt-8000000)*0.232; rateStr="23.2%"; }
+        } else if(type==="inh"){
+            if(amt<=10000000){ tax=amt*0.1; rateStr="10%"; }
+            else if(amt<=30000000){ tax=amt*0.15-500000; rateStr="15%"; deduction=500000; }
+            else if(amt<=50000000){ tax=amt*0.2-2000000; rateStr="20%"; deduction=2000000; }
+            else if(amt<=100000000){ tax=amt*0.3-7000000; rateStr="30%"; deduction=7000000; }
+            else if(amt<=200000000){ tax=amt*0.4-17000000; rateStr="40%"; deduction=17000000; }
+            else if(amt<=600000000){ tax=amt*0.5-42000000; rateStr="50%"; deduction=42000000; }
+            else { tax=amt*0.55-72000000; rateStr="55%"; deduction=72000000; }
+        } else if(type==="cons" || type==="resi"){ tax=amt*0.1; rateStr="10%"; }
+        else if(type==="prop"){ tax=amt*0.014; rateStr="1.4%"; }
+        document.getElementById('tax-result').innerHTML = `<span style="font-size:0.8rem;">税率: ${rateStr}</span>${deduction>0?`<br><span style="color:#ff4d4d">控除:-¥${deduction.toLocaleString()}</span>`:""}<br>税額: ¥${Math.floor(tax).toLocaleString()}<br>合計: ¥${Math.floor(amt+tax).toLocaleString()}`;
+    }
+
+    function setLang(c) {
+        currentLang = c;
+        const data = {
+            ja: {m:["基本","接頭語","値数","科学","レート","税金"], h:"履歴", c:"削除", ra:"金額", re:"実行", ta:"金額 (接頭語対応)", te:"分析・実行", it:"モード情報", id:"国税庁基準の計算が可能です。", ic:"閉じる", fs:["平均値(","中央値(","最頻値(","偏差値(","最大値(","最小値("], fss:["平均","中央","最頻","偏差","最大","最小"], tx:[{v:"inc",t:"所得税"},{v:"corp",t:"法人税"},{v:"inh",t:"相続税"},{v:"cons",t:"消費税 (10%)"},{v:"resi",t:"住民税"},{v:"prop",t:"固定資産税 (1.4%)"}]},
+            en: {m:["Basic","Unit","Stats","Sci","Rate","Tax"], h:"HISTORY", c:"CLEAR", ra:"Amount", re:"EXEC", ta:"Amount (Prefix OK)", te:"Analyze", it:"Info", id:"NTA Standard Tax Calculation.", ic:"Close", fs:["Mean(","Median(","Mode(","SD(","Max(","Min("], fss:["Mean","Median","Mode","SD","Max","Min"], tx:[{v:"inc",t:"Income Tax"},{v:"corp",t:"Corp Tax"},{v:"inh",t:"Inherit Tax"},{v:"cons",t:"Consumption (10%)"},{v:"resi",t:"Resident Tax"},{v:"prop",t:"Property (1.4%)"}]}
+        };
+        const l = data[c] || data.ja;
+        document.querySelectorAll('.mode-btn').forEach((b,i)=>b.innerText=l.m[i]);
+        document.getElementById('ui-hist').innerText=l.h; document.getElementById('ui-clear').innerText=l.c;
+        document.getElementById('l-rate-amt').innerText=l.ra; document.getElementById('b-rate-exec').innerText=l.re;
+        document.getElementById('l-tax-amt').innerText=l.ta; document.getElementById('b-tax-exec').innerText=l.te;
+        document.getElementById('ui-info-title').innerText=l.it; document.getElementById('ui-info-desc').innerText=l.id; document.getElementById('b-info-close').innerText=l.ic;
+        const keys = ['mean','median','mode','stdev','max','min'];
+        keys.forEach((k,i)=>{ let el=document.getElementById('f-'+k); el.innerText=l.fss[i]; el.onclick=()=>add(l.fs[i]); });
+        const ts = document.getElementById('tax-type'); ts.innerHTML='';
+        l.tx.forEach(x => ts.add(new Option(x.t, x.v)));
+        closeModal('lang-modal');
+    }
+
+    function calculate() {
+        let s = disp.value; const orig = s;
+        try {
+            for(let u in SI_MAP) s = s.split(u).join(`*${SI_MAP[u]}`);
+            s = s.replace(/×/g,'*').replace(/÷/g,'/').replace(/π/g,'Math.PI').replace(/e/g,'Math.E').replace(/√\(/g,'Math.sqrt(').replace(/\^/g,'**').replace(/⁻/g,'-');
+            let res = eval(s); disp.value = res;
+            const li = document.createElement('li'); li.className='history-item';
+            li.innerHTML = `<span class="history-time">${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span><div class="history-content">${orig} = <strong>${res}</strong></div>`;
+            document.getElementById('history-list').prepend(li);
+        } catch { disp.value = "Error"; }
+    }
+
+    function clearAll() { disp.value = "0"; }
+    function clearHistory() { document.getElementById('history-list').innerHTML = ''; }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function showPanel(id, btn) {
+        document.querySelectorAll('.keypad, .ext-panel').forEach(p => p.style.display = 'none');
+        document.getElementById('panel-' + id).style.display = (id==='rate'||id==='tax') ? 'block' : 'grid';
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    window.onload = () => {
+        const f = document.getElementById('rate-from'), t = document.getElementById('rate-to');
+        const CURR = [{c:"JPY",n:"日本円"},{c:"USD",n:"米ドル"},{c:"EUR",n:"ユーロ"},{c:"GBP",n:"英ポンド"},{c:"CAD",n:"カナダドル"},{c:"AUD",n:"豪ドル"},{c:"CHF",n:"スイスフラン"},{c:"CNY",n:"中国元"},{c:"KRW",n:"韓国ウォン"},{c:"IDR",n:"ルピア"},{c:"BTC",n:"BTC"},{c:"ETH",n:"ETH"},{c:"XAU",n:"金"},{c:"XAG",n:"銀"},{c:"XPT",n:"プラチナ"},{c:"XCP",n:"銅"}];
+        CURR.forEach(x => { f.add(new Option(`${x.c} (${x.n})`, x.c)); t.add(new Option(`${x.c} (${x.n})`, x.c)); });
+        t.value="USD"; setLang('ja'); updateAllRates(); setInterval(updateAllRates, 60000);
+    };
+</script>
+</body>
+</html>
